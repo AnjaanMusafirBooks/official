@@ -18,12 +18,13 @@
   <button class="btn primary" id="go" style="margin-top:16px">Download link पाएँ</button>
   <div id="out" role="status"></div></div></article>
 </main><footer id="foot"></footer>
-<script src="books.js"></script><script src="app.js"></script>
+<script src="books.js"></script><script src="new-version-config.js"></script><script src="app.js"></script>
 <script>
-var API="https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
+var API=String(window.NM_NEW_VERSION_CONFIG?.CHECKOUT_WORKER_URL || "").trim().replace(/\/+$/g, "");
 document.getElementById("go").addEventListener("click",async function(){
   var out=document.getElementById("out"),b=this; out.textContent="जाँच रहे हैं…"; b.disabled=true;
   try{
+    if(!/^https:\/\//i.test(API))throw Error("Candidate staging Worker URL configure नहीं है।");
     var r=await fetch(API+"/api/my-order",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({order_id:document.getElementById("oid").value,email:document.getElementById("em").value})});
     var d=await r.json();

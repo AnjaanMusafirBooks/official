@@ -21,8 +21,14 @@
      CLOUDFLARE WORKER
   ========================= */
 
-  var WORKER_URL =
-    "https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
+  // Candidate checkout must point only to a dedicated staging Worker.
+  // The URL is intentionally blank until the owner configures staging.
+  var WORKER_URL = String(window.NM_NEW_VERSION_CONFIG?.CHECKOUT_WORKER_URL || "").trim().replace(/\/+$/g, "");
+  var CASHFREE_MODE = window.NM_NEW_VERSION_CONFIG?.CASHFREE_MODE === "production" ? "production" : "sandbox";
+  function makeCheckoutAttemptId() {
+    try { if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID(); } catch (e) {}
+    return "attempt_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 18);
+  }
 
   var PRODUCT_IDS = {
     "dimag-ka-shor": "DIMAG_KA_SHOR",
@@ -70,17 +76,71 @@
       console.error("BOOKS data not found.");
       return;
     }
-
+    if (!/^https:\/\//i.test(WORKER_URL)) return;
     try {
-      var response = await fetch(WORKER_URL + "/api/catalog");
+      var response = await fetch(WORKER_URL + "/api/catalog", { cache: "no-store" });
       if (!response.ok) return;
-
       var data = await response.json();
       var all = (data && data.products) || {};
+      var catalogIds = Object.keys(all);
+      var bySlug = {};
+      catalogIds.forEach(function (id) {
+        var item = all[id];
+        if (item && item.slug) {
+          bySlug[item.slug] = item;
+          PRODUCT_IDS[item.slug] = item.product_id || id;
+        }
+      });
 
+      // Existing editorial pages stay in books.js; product prices and managed
+      // metadata come from D1 whenever a matching active catalog row exists.
       BOOKS.forEach(function (b) {
-        var d = all[PRODUCT_IDS[b.id]];
-        if (d && d.price != null) D1_PRODUCTS[b.id] = d;
+        var d = bySlug[b.id] || all[PRODUCT_IDS[b.id]];
+        if (d) {
+          var backendId = d.product_id || PRODUCT_IDS[b.id];
+          if (backendId) PRODUCT_IDS[b.id] = backendId;
+          D1_PRODUCTS[b.id] = d;
+          b.checkout = true;
+          if (d.slug) {
+            if (d.name) b.title = d.name;
+            if (d.author_name) b.author = d.author_name;
+            if (d.page_count) b.pages = Number(d.page_count);
+            if (d.language) b.language = d.language;
+            if (typeof d.description === "string") b.desc = d.description;
+            b.featured = !!d.featured;
+            b.popular = !!d.popular;
+          }
+          if (d.cover_url || d.cover_asset) b.cover = d.cover_url || d.cover_asset;
+        } else {
+          // If the catalog was reached successfully, do not offer a static book
+          // whose backend product is missing/inactive.
+          b.checkout = false;
+        }
+      });
+
+      // New database-managed books are rendered without requiring a code edit.
+      catalogIds.forEach(function (id) {
+        var d = all[id];
+        if (!d || !d.slug || BOOKS.some(function (b) { return b.id === d.slug; })) return;
+        PRODUCT_IDS[d.slug] = d.product_id || id;
+        D1_PRODUCTS[d.slug] = d;
+        BOOKS.push({
+          id: d.slug,
+          title: d.name || d.slug,
+          subtitle: d.offer_label || "Digital eBook",
+          author: d.author_name || "Anjaan Musafir Books",
+          pages: Number(d.page_count || 0),
+          language: d.language || "Hindi",
+          price: Number(d.price || 0),
+          mrp: Number(d.mrp || d.price || 0),
+          cover: d.cover_url || d.cover_asset || "dimag-ka-shor.jpg",
+          featured: !!d.featured,
+          popular: !!d.popular,
+          checkout: true,
+          desc: d.description || "Digital eBook from Anjaan Musafir Books.",
+          inside: [], forWho: [], note: "",
+          preview: { enabled: false, pages: [] }
+        });
       });
     } catch (err) {
       console.warn("catalog load failed", err);
@@ -935,6 +995,9 @@
         (success && orderId
           ? '<a class="result-myorder" href="my-order.html">Order खो जाए तो Mera Order खोलें →</a>'
           : "") +
+        (!success && options.manualFallbackProductId
+          ? '<a class="btn result-manual-link" href="purchase-request.html?product_id=' + encodeURIComponent(options.manualFallbackProductId) + '">Request manual purchase assistance</a>'
+          : "") +
         '<button type="button" class="btn result-secondary">Close</button>' +
       '</div>';
 
@@ -964,12 +1027,13 @@
     requestAnimationFrame(function () { modal.classList.add("open"); });
   }
 
-  async function validateCoupon(productId, coupon) {
+  async function validateCoupon(productId, coupon, attemptId) {
+    if (!/^https:\/\//i.test(WORKER_URL)) throw new Error("Checkout अभी configure नहीं है। कृपया बाद में प्रयास करें।");
     var response = await fetch(
       WORKER_URL + "/api/validate-coupon",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Checkout-Attempt-ID": attemptId || "" },
         body: JSON.stringify({
           product_id: PRODUCT_IDS[productId],
           coupon: coupon
@@ -987,7 +1051,7 @@
     return data;
   }
 
-  function openCheckoutForm(book) {
+  function openCheckoutForm(book, attemptId) {
     return new Promise(function (resolve) {
       var old = document.querySelector(".checkout-modal");
       if (old) old.remove();
@@ -1012,11 +1076,6 @@
             '<label class="checkout-field"><span>Mobile <b>*</b></span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" maxlength="10" placeholder="10-digit mobile number" required></label>' +
             '<div class="checkout-field coupon-field"><span>Coupon Code <em>(Optional)</em></span><div class="coupon-row"><input name="coupon" type="text" autocomplete="off" placeholder="Coupon code, अगर है"><button type="button" class="btn coupon-verify">Verify</button></div><div class="coupon-status" hidden></div></div>' +
             '<div class="checkout-error" hidden></div>' +
-            '<div class="checkout-loading" role="status" aria-live="polite" hidden>' +
-              '<div class="pay-spinner" aria-hidden="true"></div>' +
-              '<div><p class="checkout-loading-title">Preparing your secure payment…</p>' +
-              '<p class="checkout-loading-sub">Please wait a few seconds. The payment options will open automatically. Do not refresh or press back.</p></div>' +
-            '</div>' +
             '<div class="checkout-safe"><span class="checkout-safe-icon">✓</span><span>Your details are used only to create your order and payment session.</span></div>' +
             '<div class="checkout-actions"><button type="submit" class="btn primary checkout-pay">Continue</button><button type="button" class="btn checkout-cancel" data-checkout-close>Cancel</button></div>' +
           '</form>' +
@@ -1033,7 +1092,6 @@
       var priceBox = modal.querySelector("[data-live-price]");
       var nameInput = form.elements.name;
       var verified = null;
-      var loading = false;
 
       function close(value) {
         document.body.classList.remove("checkout-open");
@@ -1068,7 +1126,7 @@
         verifyButton.disabled = true;
         verifyButton.textContent = "Checking…";
         try {
-          var data = await validateCoupon(book.id, coupon);
+          var data = await validateCoupon(book.id, coupon, attemptId);
           verified = data;
 
 var payableAmount =
@@ -1100,7 +1158,7 @@ couponStatus.innerHTML = data.free
       });
 
       modal.querySelectorAll("[data-checkout-close]").forEach(function (el) {
-        el.addEventListener("click", function () { if (loading) return; close(null); });
+        el.addEventListener("click", function () { close(null); });
       });
 
       function escClose(e) {
@@ -1109,7 +1167,6 @@ couponStatus.innerHTML = data.free
           return;
         }
         if (e.key === "Escape") {
-          if (loading) return;
           document.removeEventListener("keydown", escClose);
           close(null);
         }
@@ -1148,25 +1205,8 @@ couponStatus.innerHTML = data.free
 
         var pay = form.querySelector(".checkout-pay");
         pay.disabled = true;
-        pay.textContent = "Please wait…";
-        loading = true;
-        modal.classList.add("is-loading");
-        form.querySelectorAll("input,button").forEach(function (el) {
-          if (el !== pay) el.disabled = true;
-        });
-        var box = modal.querySelector(".checkout-loading");
-        box.hidden = false;
-        var slowTimer = setTimeout(function () {
-          var sub = box.querySelector(".checkout-loading-sub");
-          if (sub) sub.textContent = "Still connecting to the secure payment gateway. Thank you for your patience…";
-        }, 8000);
-
-        // Modal tab tak khula rahega jab tak payment page na khul jaye.
-        // Error aaye to finish() se band karo.
-        resolve({
-          name: name, email: email, phone: phone, coupon: coupon,
-          finish: function () { clearTimeout(slowTimer); loading = false; close(null); }
-        });
+        pay.textContent = "Preparing…";
+        close({ name: name, email: email, phone: phone, coupon: coupon, attempt_id: attemptId });
       });
 
       requestAnimationFrame(function () {
@@ -1175,33 +1215,6 @@ couponStatus.innerHTML = data.free
       });
     });
   }
-
-  /* =========================
-     WARM-UP (Worker + Cashfree SDK pehle se taiyaar)
-  ========================= */
-
-  // Page खुलते ही Worker को जगा दें (cold start हटता है) और Cashfree SDK तैयार रखें।
-  var cashfreeInstance = null;
-  function getCashfree() {
-    if (!cashfreeInstance && typeof Cashfree === "function") {
-      cashfreeInstance = Cashfree({ mode: "production" });
-    }
-    return cashfreeInstance;
-  }
-  function warmUpCheckout() {
-    try { getCashfree(); } catch (e) {}
-    try { fetch(WORKER_URL + "/api/catalog", { cache: "no-store" }).catch(function () {}); } catch (e) {}
-  }
-  warmUpCheckout();
-
-  // Payment page se back dabane par purana loading modal na dikhe
-  window.addEventListener("pageshow", function (ev) {
-    if (!ev.persisted) return;
-    var m = document.querySelector(".checkout-modal");
-    if (m) m.remove();
-    document.body.classList.remove("checkout-open");
-    document.querySelectorAll(".buy-btn").forEach(function (b) { b.disabled = false; b.textContent = "Buy Now"; });
-  });
 
   document.addEventListener("click", async function (e) {
     var btn = e.target.closest(".buy-btn");
@@ -1216,19 +1229,24 @@ couponStatus.innerHTML = data.free
       return;
     }
 
-    // Form khulte waqt hi Worker ko dobara jaga do (user form bharte-bharte warm ho jaye)
-    warmUpCheckout();
-
-    var customer = await openCheckoutForm(checkoutBook);
+    var attemptId = makeCheckoutAttemptId();
+    var customer = await openCheckoutForm(checkoutBook, attemptId);
     if (!customer) return;
 
     btn.disabled = true;
     btn.textContent = "Opening…";
 
+    if (!/^https:\/\//i.test(WORKER_URL)) {
+      showResultModal(null, { success: false, title: "Checkout अभी configure नहीं है", message: "इस candidate website के लिए staging Worker URL सेट नहीं है। अभी payment शुरू नहीं की गई है।", manualFallbackProductId: productId });
+      btn.disabled = false;
+      btn.textContent = "Buy Now";
+      return;
+    }
+
     try {
       var response = await fetch(WORKER_URL + "/api/create-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Checkout-Attempt-ID": customer.attempt_id || attemptId },
         body: JSON.stringify({
           product_id: backendProductId,
           name: customer.name,
@@ -1242,17 +1260,16 @@ couponStatus.innerHTML = data.free
       try { data = await response.json(); } catch (err) {}
 
       if (!response.ok) {
-        customer.finish();
         showResultModal(null, {
           success: false,
           title: "Order शुरू नहीं हो सका",
-          message: data.coupon_error || data.error || "कृपया थोड़ी देर बाद फिर कोशिश करें।"
+          message: data.coupon_error || data.error || "कृपया थोड़ी देर बाद फिर कोशिश करें।",
+          manualFallbackProductId: productId
         });
         return;
       }
 
       if (data.free && data.download_url) {
-        customer.finish();
         showResultModal(data, {
           success: true,
           title: "Congratulations! 🎉",
@@ -1262,37 +1279,37 @@ couponStatus.innerHTML = data.free
       }
 
       if (!data.payment_session_id) {
-        customer.finish();
         showResultModal(null, {
           success: false,
           title: "Payment शुरू नहीं हो सका",
-          message: "Payment session नहीं मिला। कृपया फिर कोशिश करें।"
+          message: "Payment session नहीं मिला। कृपया फिर कोशिश करें।",
+          manualFallbackProductId: productId
         });
         return;
       }
 
       if (typeof Cashfree !== "function") {
-        customer.finish();
         showResultModal(null, {
           success: false,
           title: "Payment system load नहीं हुआ",
-          message: "कृपया page refresh करके फिर कोशिश करें।"
+          message: "कृपया page refresh करके फिर कोशिश करें।",
+          manualFallbackProductId: productId
         });
         return;
       }
 
-      var cashfree = getCashfree() || Cashfree({ mode: "production" });
+      var cashfree = Cashfree({ mode: CASHFREE_MODE });
       await cashfree.checkout({
         paymentSessionId: data.payment_session_id,
         redirectTarget: "_self"
       });
     } catch (err) {
       console.error(err);
-      customer.finish();
       showResultModal(null, {
         success: false,
         title: "Payment connection में समस्या",
-        message: "Payment system से connection नहीं हो पाया। कृपया फिर कोशिश करें।"
+        message: "Payment system से connection नहीं हो पाया। कृपया फिर कोशिश करें।",
+        manualFallbackProductId: productId
       });
     } finally {
       btn.disabled = false;
@@ -1324,8 +1341,9 @@ couponStatus.innerHTML = data.free
     }
 
     async function fetchStatus() {
+      var attemptId = params.get("attempt_id") || "";
       var response = await fetch(
-        WORKER_URL + "/api/payment-status?order_id=" + encodeURIComponent(orderId)
+        WORKER_URL + "/api/payment-status?order_id=" + encodeURIComponent(orderId) + (attemptId ? "&attempt_id=" + encodeURIComponent(attemptId) : "")
       );
       return response.json();
     }

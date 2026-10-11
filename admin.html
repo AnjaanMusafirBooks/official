@@ -150,9 +150,10 @@ hr { border: 0; border-top: 1px solid #d8d1c3; margin: 16px 0; }
   <h2>चालू Coupons</h2><div id="coupons"></div>
 </div>
 
+<script src="new-version-config.js"></script>
 <script>
-// Worker का पता — अपना workers.dev link यहाँ रखें
-var API = "https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
+// Candidate UI must use only the configured staging Worker.
+var API = String(window.NM_NEW_VERSION_CONFIG?.CHECKOUT_WORKER_URL || "").trim().replace(/\/+$/g, "");
 var KEY = sessionStorage.getItem("ak") || "", DATA = null;
 var $ = function (i) { return document.getElementById(i); };
 function esc(t){return String(t==null?"":t).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
@@ -160,6 +161,7 @@ function msg(t){var m=$("msg");m.textContent=t;m.style.display="block";setTimeou
 
 // सर्वर से बात: हर बार password header में जाता है
 async function call(path, body){
+  if (!/^https:\/\//i.test(API)) throw new Error("Candidate staging Worker URL configure नहीं है। अभी request नहीं भेजी गई।");
   var r = await fetch(API+path,{method:body?"POST":"GET",headers:{"Content-Type":"application/json","x-admin-key":KEY},body:body?JSON.stringify(body):undefined});
   var d = await r.json(); if(!r.ok) throw new Error(d.error||"Error"); return d;
 }
