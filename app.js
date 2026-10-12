@@ -355,7 +355,19 @@
     document.title =
       b.title +
       " — Anjaan Musafir Books";
-
+// Meta Pixel: ViewContent
+try {
+  if (typeof window.fbq === "function") {
+    window.fbq("track", "ViewContent", {
+      content_name: b.title,
+      content_type: "product",
+      value: Number(currentPrice(b)),
+      currency: "INR"
+    });
+  }
+} catch (pixelError) {
+  console.warn("ViewContent tracking error:", pixelError);
+}
     var md =
       document.querySelector(
         'meta[name="description"]'
@@ -1230,6 +1242,19 @@ couponStatus.innerHTML = data.free
     btn.textContent = "Opening…";
 
     try {
+            // Meta Pixel: InitiateCheckout
+      try {
+        if (typeof window.fbq === "function") {
+          window.fbq("track", "InitiateCheckout", {
+            content_ids: [String(backendProductId)],
+            content_name: checkoutBook.title,
+            content_type: "product",
+            currency: "INR"
+          });
+        }
+      } catch (pixelError) {
+        console.warn("InitiateCheckout tracking error:", pixelError);
+      }
       var response = await fetch(WORKER_URL + "/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
