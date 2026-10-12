@@ -145,7 +145,7 @@ hr { border: 0; border-top: 1px solid #d8d1c3; margin: 16px 0; }
   <h2>किताबें और Offer</h2><div id="books"></div>
   <h2>Combo Offer Manager</h2>
   <div class="card" id="combo-editor">
-    <input type="hidden" id="co_id">
+    <label>Combo Product ID (खाली छोड़ें तो अपने आप बनेगी)</label><input id="co_id" maxlength="64" pattern="[A-Za-z0-9_-]{3,64}" placeholder="जैसे MIND_CAREER_001"><small>सेव होने के बाद यही ID ऑर्डर और पहचान में इस्तेमाल होगी। पुराने कॉम्बो को एडिट करते समय ID न बदलें।</small>
     <label>कॉम्बो का नाम *</label><input id="co_name" maxlength="100" placeholder="जैसे Complete Library Combo">
     <label>कॉम्बो विवरण (वैकल्पिक)</label><textarea id="co_desc" rows="2" maxlength="1000" placeholder="ग्राहक को इस कॉम्बो में क्या मिलेगा?"></textarea>
     <label>किताबें चुनें *</label><div id="co_books"></div>
@@ -160,6 +160,7 @@ hr { border: 0; border-top: 1px solid #d8d1c3; margin: 16px 0; }
     <button onclick="saveCombo()">कॉम्बो सेव करें</button> <button type="button" onclick="resetCombo()">नया कॉम्बो</button>
   </div>
   <h2>मौजूदा Combo Offers</h2><div id="combos"></div>
+  <h2>Orders & Payments</h2><p><small>नए और पुराने ऑर्डर यहाँ दिखेंगे। Combo ऑर्डर में Combo ID और शामिल किताबें भी दिखाई देंगी।</small></p><div id="orders"></div>
   <h2>Coupon बनाएँ</h2>
   <div class="card">
     <div class="row"><div><label>Code (जैसे MUSAFIR20)</label><input id="c_code"></div>
@@ -223,10 +224,19 @@ async function load(){
   $("co_price").oninput=calcCombo;
   $("combos").innerHTML = (DATA.combos||[]).length ? DATA.combos.map(function(c){
     var selected = (c.product_ids||[]).map(function(id){var p=DATA.products.find(function(x){return x.product_id===id;});return p?p.name:id;}).join(", ");
-    return '<div class="card"><b>'+esc(c.name)+'</b><p><small>'+esc(selected)+'</small></p><p>Combo Price: <b>₹'+Number(c.combo_price).toLocaleString("en-IN")+'</b> · '+(c.active?'चालू':'बंद')+'</p><button type="button" data-edit-combo="'+esc(c.combo_id)+'">एडिट</button> <button type="button" class="red" data-disable-combo="'+esc(c.combo_id)+'">बंद करें</button></div>';
+    return '<div class="card"><b>'+esc(c.name)+'</b><p><small>Product ID: <code>'+esc(c.combo_id)+'</code></small></p><p><small>'+esc(selected)+'</small></p><p>Combo Price: <b>₹'+Number(c.combo_price).toLocaleString("en-IN")+'</b> · '+(c.active?'चालू':'बंद')+'</p><button type="button" data-edit-combo="'+esc(c.combo_id)+'">एडिट</button> <button type="button" class="red" data-disable-combo="'+esc(c.combo_id)+'">बंद करें</button></div>';
   }).join("") : '<small>अभी कोई Combo Offer नहीं बनाया गया है।</small>';
   document.querySelectorAll("[data-edit-combo]").forEach(function(btn){btn.addEventListener("click",function(){editCombo(btn.getAttribute("data-edit-combo"));});});
   document.querySelectorAll("[data-disable-combo]").forEach(function(btn){btn.addEventListener("click",function(){disableCombo(btn.getAttribute("data-disable-combo"));});});
+  $("orders").innerHTML = (DATA.orders||[]).length ? DATA.orders.map(function(o){
+    var combo = !!o.combo_id, status = String(o.payment_status||"CREATED").toUpperCase();
+    var tone = status==="PAID" ? "#176b37" : status==="FAILED" ? "#a12c22" : "#76551b";
+    return '<div class="card"><div class="row"><div><b>'+esc(o.customer_name||"Customer")+'</b><br><small>'+esc(o.customer_email||"")+' · '+esc(o.customer_phone||"")+'</small></div><div><b style="color:'+tone+'">'+esc(status)+'</b></div></div>'
+      +'<p><small>Order ID: <code>'+esc(o.order_id)+'</code></small></p>'
+      +'<p><b>'+esc(combo ? (o.combo_name||"Combo Order") : (o.product_name||o.product_id||"Product"))+'</b>'
+      +(combo?'<br><small>Combo Product ID: '+esc(o.combo_id)+' · किताबें: '+esc(o.item_names||o.product_id||"")+'</small>':'<br><small>Product ID: '+esc(o.product_id||"—")+'</small>')+'</p>'
+      +'<p>राशि: <b>₹'+Number(o.final_price||0).toLocaleString("en-IN",{maximumFractionDigits:2})+'</b> · <small>'+esc(o.created_at||o.paid_at||"")+'</small></p></div>';
+  }).join("") : '<div class="card"><small>अभी Orders उपलब्ध नहीं हैं या कोई ऑर्डर नहीं मिला।</small></div>';
   calcCombo();
   // coupon के लिए किताबों के checkbox
   $("c_books").innerHTML = '<label><input type="checkbox" id="cb_all" style="width:auto" checked> सभी किताबें</label>'
@@ -264,7 +274,7 @@ function calcCombo(){
 }
 function resetCombo(){ $("co_id").value="";$("co_name").value="";$("co_desc").value="";$("co_price").value="";$("co_active").checked=true;document.querySelectorAll(".co-book").forEach(function(x){x.checked=false;});calcCombo(); }
 function editCombo(id){var c=(DATA.combos||[]).find(function(x){return x.combo_id===id;});if(!c)return;$("co_id").value=c.combo_id;$("co_name").value=c.name;$("co_desc").value=c.description||"";$("co_price").value=c.combo_price;$("co_active").checked=!!c.active;document.querySelectorAll(".co-book").forEach(function(x){x.checked=(c.product_ids||[]).includes(x.value);});calcCombo();window.scrollTo({top:$("combo-editor").offsetTop,behavior:"smooth"});}
-function saveCombo(){var ids=Array.prototype.map.call(document.querySelectorAll(".co-book:checked"),function(x){return x.value;});var price=Number($("co_price").value);if(!$("co_name").value.trim())return msg("कॉम्बो का नाम लिखें।");if(!ids.length)return msg("कम से कम एक किताब चुनें।");if(!Number.isFinite(price)||price<1)return msg("Combo Price कम से कम ₹1 होनी चाहिए।");run(async function(){await call("/api/admin/combo-save",{combo_id:$("co_id").value,name:$("co_name").value,description:$("co_desc").value,product_ids:ids,combo_price:price,active:$("co_active").checked});resetCombo();},"Combo Offer सेव हो गया ✅");}
+function saveCombo(){var customId=$("co_id").value.trim();if(customId && !/^[A-Za-z0-9_-]{3,64}$/.test(customId))return msg("Product ID में 3–64 अक्षर, नंबर, _ या - इस्तेमाल करें।");var ids=Array.prototype.map.call(document.querySelectorAll(".co-book:checked"),function(x){return x.value;});var price=Number($("co_price").value);if(!$("co_name").value.trim())return msg("कॉम्बो का नाम लिखें।");if(!ids.length)return msg("कम से कम एक किताब चुनें।");if(!Number.isFinite(price)||price<1)return msg("Combo Price कम से कम ₹1 होनी चाहिए।");run(async function(){await call("/api/admin/combo-save",{combo_id:$("co_id").value,name:$("co_name").value,description:$("co_desc").value,product_ids:ids,combo_price:price,active:$("co_active").checked});resetCombo();},"Combo Offer सेव हो गया ✅");}
 function disableCombo(id){if(confirm("इस कॉम्बो को वेबसाइट से बंद करें? पुराने ऑर्डर सुरक्षित रहेंगे।"))run(function(){return call("/api/admin/combo-delete",{combo_id:id});},"कॉम्बो बंद कर दिया गया।");}
 if(KEY){ load().catch(function(){ sessionStorage.removeItem("ak"); }); }
 </script></body></html>
