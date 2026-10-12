@@ -114,6 +114,13 @@ small { color: #566170; overflow-wrap: anywhere; }
 }
 #c_books input[type="checkbox"] { flex: 0 0 auto; margin-top: .35em; }
 #login { max-width: 100%; }
+#combo-editor { border: 1px solid #d7c49b; background: linear-gradient(145deg,#fffdf8,#f7f0df); box-shadow: 0 12px 34px rgba(16,26,38,.07); }
+#combo-editor > label { color: #293445; font-weight: 600; }
+#combo-editor .row { margin: 10px 0; }
+#combo-editor input[readonly] { background: #f2eee5; font-weight: 700; color: #273548; }
+#combo-editor #co_price { border: 2px solid #c9a45c; font-weight: 800; font-size: 1.12rem; }
+#combo-editor #co_math_note { padding: 10px 12px; border-radius: 10px; background: #f4efe3; }
+#combos .card { border-left: 4px solid #c9a45c; }
 hr { border: 0; border-top: 1px solid #d8d1c3; margin: 16px 0; }
 @media (max-width: 600px) {
   body { padding: 12px; }
@@ -136,6 +143,23 @@ hr { border: 0; border-top: 1px solid #d8d1c3; margin: 16px 0; }
 
 <div id="app" style="display:none">
   <h2>किताबें और Offer</h2><div id="books"></div>
+  <h2>Combo Offer Manager</h2>
+  <div class="card" id="combo-editor">
+    <input type="hidden" id="co_id">
+    <label>कॉम्बो का नाम *</label><input id="co_name" maxlength="100" placeholder="जैसे Complete Library Combo">
+    <label>कॉम्बो विवरण (वैकल्पिक)</label><textarea id="co_desc" rows="2" maxlength="1000" placeholder="ग्राहक को इस कॉम्बो में क्या मिलेगा?"></textarea>
+    <label>किताबें चुनें *</label><div id="co_books"></div>
+    <div class="card" style="background:#f8f5ee">
+      <div class="row"><div><label>कुल MRP (अपने आप)</label><input id="co_mrp" readonly></div><div><label>कुल वर्तमान बिक्री मूल्य (अपने आप)</label><input id="co_current" readonly></div></div>
+      <div class="row"><div><label>पहले से मिलने वाली छूट</label><input id="co_normal_off" readonly></div><div><label>तुम्हारी Combo Price (₹) *</label><input id="co_price" type="number" min="1" step="0.01" placeholder="अपनी कीमत तय करें"></div></div>
+      <div class="row"><div><label>अतिरिक्त छूट (अपने आप)</label><input id="co_extra_off" readonly></div><div><label>MRP से कुल छूट (अपने आप)</label><input id="co_total_off" readonly></div></div>
+      <div class="row"><div><label>वर्तमान कीमत से अतिरिक्त बचत (₹)</label><input id="co_extra_savings" readonly></div><div><label>MRP से कुल बचत (₹)</label><input id="co_total_savings" readonly></div></div>
+      <p id="co_math_note"><small>किताबें चुनते ही हिसाब अपडेट होगा। कॉम्बो कीमत तुम खुद तय करोगे।</small></p>
+    </div>
+    <label><input id="co_active" type="checkbox" style="width:auto" checked> कॉम्बो वेबसाइट पर चालू रखें</label>
+    <button onclick="saveCombo()">कॉम्बो सेव करें</button> <button type="button" onclick="resetCombo()">नया कॉम्बो</button>
+  </div>
+  <h2>मौजूदा Combo Offers</h2><div id="combos"></div>
   <h2>Coupon बनाएँ</h2>
   <div class="card">
     <div class="row"><div><label>Code (जैसे MUSAFIR20)</label><input id="c_code"></div>
@@ -150,9 +174,10 @@ hr { border: 0; border-top: 1px solid #d8d1c3; margin: 16px 0; }
   <h2>चालू Coupons</h2><div id="coupons"></div>
 </div>
 
+<script src="combo-config.js"></script>
 <script>
 // Worker का पता — अपना workers.dev link यहाँ रखें
-var API = "https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
+var API = (window.AM_COMBO_CONFIG && window.AM_COMBO_CONFIG.apiBase) || "https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
 var KEY = sessionStorage.getItem("ak") || "", DATA = null;
 var $ = function (i) { return document.getElementById(i); };
 function esc(t){return String(t==null?"":t).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
@@ -186,6 +211,23 @@ async function load(){
     +'<label><input id="oa_'+p.product_id+'" type="checkbox" style="width:auto" '+(o.active?"checked":"")+'> Offer चालू</label>'
     +'<button onclick="saveOffer(\''+p.product_id+'\')">Offer सेव</button></div>';
   }).join("");
+  // Combo manager: checkbox list + current saved combos
+  $("co_books").innerHTML = DATA.products.map(function(p){
+    var now = Date.now();
+    var off = DATA.offers.find(function(x){return x.product_id===p.product_id && Number(x.active)===1 && (!x.starts_at || Date.parse(x.starts_at)<=now) && (!x.ends_at || Date.parse(x.ends_at)>=now);})||{};
+    var current = off.sale_price != null ? Number(off.sale_price) : Number(p.price);
+    var mrp = off.mrp != null ? Number(off.mrp) : Number(p.price);
+    return '<label style="display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border:1px solid #e6dece;border-radius:10px;margin:6px 0;background:'+(Number(p.active)===1?'#fff':'#f4f4f4')+'"><input type="checkbox" class="co-book" value="'+esc(p.product_id)+'" data-name="'+esc(p.name)+'" data-price="'+current+'" data-mrp="'+mrp+'" style="width:auto"> <span>'+esc(p.name)+' <small>(MRP ₹'+mrp+' · वर्तमान ₹'+current+(Number(p.active)===1?'':' · किताब बंद है')+')</small></span></label>';
+  }).join("");
+  document.querySelectorAll(".co-book").forEach(function(x){x.onchange=calcCombo;});
+  $("co_price").oninput=calcCombo;
+  $("combos").innerHTML = (DATA.combos||[]).length ? DATA.combos.map(function(c){
+    var selected = (c.product_ids||[]).map(function(id){var p=DATA.products.find(function(x){return x.product_id===id;});return p?p.name:id;}).join(", ");
+    return '<div class="card"><b>'+esc(c.name)+'</b><p><small>'+esc(selected)+'</small></p><p>Combo Price: <b>₹'+Number(c.combo_price).toLocaleString("en-IN")+'</b> · '+(c.active?'चालू':'बंद')+'</p><button type="button" data-edit-combo="'+esc(c.combo_id)+'">एडिट</button> <button type="button" class="red" data-disable-combo="'+esc(c.combo_id)+'">बंद करें</button></div>';
+  }).join("") : '<small>अभी कोई Combo Offer नहीं बनाया गया है।</small>';
+  document.querySelectorAll("[data-edit-combo]").forEach(function(btn){btn.addEventListener("click",function(){editCombo(btn.getAttribute("data-edit-combo"));});});
+  document.querySelectorAll("[data-disable-combo]").forEach(function(btn){btn.addEventListener("click",function(){disableCombo(btn.getAttribute("data-disable-combo"));});});
+  calcCombo();
   // coupon के लिए किताबों के checkbox
   $("c_books").innerHTML = '<label><input type="checkbox" id="cb_all" style="width:auto" checked> सभी किताबें</label>'
    + DATA.products.map(function(p){return '<label><input type="checkbox" class="cb" value="'+p.product_id+'" style="width:auto"> '+esc(p.name)+'</label>'}).join("");
@@ -207,5 +249,22 @@ function saveCoupon(){
   run(function(){return call("/api/admin/coupon",{code:$("c_code").value,discount_type:$("c_type").value,discount_value:$("c_val").value,
     min_amount:$("c_min").value,max_uses:$("c_max").value,product_ids:ids,expires_at:toIso($("c_end").value),active:true})},"Coupon सेव हुआ ✅"); }
 function delCoupon(code){ if(confirm(code+" हटाएँ?")) run(function(){return call("/api/admin/coupon-delete",{code:code})},"हट गया"); }
+function calcCombo(){
+  var chosen=Array.prototype.slice.call(document.querySelectorAll(".co-book:checked"));
+  var mrp=chosen.reduce(function(s,x){return s+Number(x.dataset.mrp||0);},0);
+  var current=chosen.reduce(function(s,x){return s+Number(x.dataset.price||0);},0);
+  var cp=$("co_price").value===""?null:Number($("co_price").value);
+  $("co_mrp").value="₹"+mrp.toFixed(2); $("co_current").value="₹"+current.toFixed(2);
+  $("co_normal_off").value=mrp>0?Math.max(0,(mrp-current)/mrp*100).toFixed(2)+"%":"—";
+  $("co_extra_off").value=cp!=null&&current>0&&cp<current?(((current-cp)/current)*100).toFixed(2)+"% अतिरिक्त":"—";
+  $("co_total_off").value=cp!=null&&mrp>0&&cp<mrp?(((mrp-cp)/mrp)*100).toFixed(2)+"% कुल":"—";
+  $("co_extra_savings").value=cp!=null&&cp<=current?"₹"+(current-cp).toFixed(2):"—";
+  $("co_total_savings").value=cp!=null&&cp<=mrp?"₹"+(mrp-cp).toFixed(2):"—";
+  $("co_math_note").innerHTML=cp!=null&&current>0&&cp>current?'<small style="color:#a12c22">कॉम्बो कीमत वर्तमान कुल कीमत से अधिक है; अतिरिक्त छूट नहीं मिलेगी।</small>':'<small>पहले MRP और वर्तमान कीमतों की गणना, फिर तुम्हारी Combo Price के आधार पर अतिरिक्त छूट।</small>';
+}
+function resetCombo(){ $("co_id").value="";$("co_name").value="";$("co_desc").value="";$("co_price").value="";$("co_active").checked=true;document.querySelectorAll(".co-book").forEach(function(x){x.checked=false;});calcCombo(); }
+function editCombo(id){var c=(DATA.combos||[]).find(function(x){return x.combo_id===id;});if(!c)return;$("co_id").value=c.combo_id;$("co_name").value=c.name;$("co_desc").value=c.description||"";$("co_price").value=c.combo_price;$("co_active").checked=!!c.active;document.querySelectorAll(".co-book").forEach(function(x){x.checked=(c.product_ids||[]).includes(x.value);});calcCombo();window.scrollTo({top:$("combo-editor").offsetTop,behavior:"smooth"});}
+function saveCombo(){var ids=Array.prototype.map.call(document.querySelectorAll(".co-book:checked"),function(x){return x.value;});var price=Number($("co_price").value);if(!$("co_name").value.trim())return msg("कॉम्बो का नाम लिखें।");if(!ids.length)return msg("कम से कम एक किताब चुनें।");if(!Number.isFinite(price)||price<1)return msg("Combo Price कम से कम ₹1 होनी चाहिए।");run(async function(){await call("/api/admin/combo-save",{combo_id:$("co_id").value,name:$("co_name").value,description:$("co_desc").value,product_ids:ids,combo_price:price,active:$("co_active").checked});resetCombo();},"Combo Offer सेव हो गया ✅");}
+function disableCombo(id){if(confirm("इस कॉम्बो को वेबसाइट से बंद करें? पुराने ऑर्डर सुरक्षित रहेंगे।"))run(function(){return call("/api/admin/combo-delete",{combo_id:id});},"कॉम्बो बंद कर दिया गया।");}
 if(KEY){ load().catch(function(){ sessionStorage.removeItem("ak"); }); }
 </script></body></html>

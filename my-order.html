@@ -18,9 +18,10 @@
   <button class="btn primary" id="go" style="margin-top:16px">Download link पाएँ</button>
   <div id="out" role="status"></div></div></article>
 </main><footer id="foot"></footer>
+<script src="combo-config.js"></script>
 <script src="books.js"></script><script src="app.js"></script>
 <script>
-var API="https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
+var API=(window.AM_COMBO_CONFIG&&window.AM_COMBO_CONFIG.apiBase)||"https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
 document.getElementById("go").addEventListener("click",async function(){
   var out=document.getElementById("out"),b=this; out.textContent="जाँच रहे हैं…"; b.disabled=true;
   try{
@@ -32,8 +33,8 @@ document.getElementById("go").addEventListener("click",async function(){
       var max=Number(d.max_downloads||3);
       out.innerHTML='<div class="order-result"><b>आपकी eBook तैयार है ✅</b>'+
         (d.product_name?'<p>'+escapeHtml(d.product_name)+'</p>':'')+
-        '<div class="remaining">Download Remaining: '+remaining+' / '+max+'<div class="muted">Link की validity: '+(d.expires_at?escapeHtml(new Date(d.expires_at).toLocaleString('en-IN')):'active')+'</div></div>'+
-        '<a class="btn primary" style="margin-top:10px" href="'+escapeHtml(d.download_url)+'">Download eBook</a></div>';
+        (d.combo_id ? '<div class="remaining">कॉम्बो की हर किताब के लिए अलग डाउनलोड सीमा है।<div class="muted">Link की validity: '+(d.expires_at?escapeHtml(new Date(d.expires_at).toLocaleString('en-IN')):'active')+'</div></div>' : '<div class="remaining">Download Remaining: '+remaining+' / '+max+'<div class="muted">Link की validity: '+(d.expires_at?escapeHtml(new Date(d.expires_at).toLocaleString('en-IN')):'active')+'</div></div>')+
+        (d.download_items && d.download_items.length ? d.download_items.map(function(item){return '<a class="btn primary" style="display:block;margin-top:10px" href="'+escapeHtml(item.download_url)+'">Download '+escapeHtml(item.name||'eBook')+' ('+Number(item.downloads_used||0)+'/'+Number(item.max_downloads||3)+')</a>';}).join('') : '<a class="btn primary" style="margin-top:10px" href="'+escapeHtml(d.download_url)+'">Download eBook</a>')+'</div>';
     }else{ out.textContent=d.error||"कुछ गड़बड़ हुई, फिर कोशिश करें।"; }
   }catch(e){ out.textContent="नेटवर्क में दिक्कत है, थोड़ी देर बाद कोशिश करें।"; }
   b.disabled=false;

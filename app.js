@@ -21,8 +21,10 @@
      CLOUDFLARE WORKER
   ========================= */
 
-  var WORKER_URL =
+  var AM_CONFIG = window.AM_COMBO_CONFIG || {};
+  var WORKER_URL = AM_CONFIG.apiBase ||
     "https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
+  var CASHFREE_MODE = AM_CONFIG.cashfreeMode || "production";
 
   var PRODUCT_IDS = {
     "dimag-ka-shor": "DIMAG_KA_SHOR",
@@ -914,7 +916,7 @@
           (discountPrice != null && discountPrice > 0 ? '<div><span>Coupon Discount</span><b class="result-save">−' + money(discountPrice) + '</b></div>' : "") +
           '<div class="result-final"><span>Paid</span><b>' + money(finalPrice) + '</b></div>' +
           (totalSavings != null && totalSavings > 0 ? '<div><span>Total Savings</span><b class="result-save">' + money(totalSavings) + '</b></div>' : "") +
-          (downloadsRemaining != null ? '<div><span>Downloads Remaining</span><b>' + downloadsRemaining + (maxDownloads != null ? ' / ' + maxDownloads : '') + '</b></div>' : "") +
+          (downloadsRemaining != null && !(data && data.download_items && data.download_items.length) ? '<div><span>Downloads Remaining</span><b>' + downloadsRemaining + (maxDownloads != null ? ' / ' + maxDownloads : '') + '</b></div>' : "") +
         '</div>';
     }
 
@@ -929,9 +931,11 @@
         (message ? '<p class="result-message">' + esc(message) + '</p>' : "") +
         (orderId ? '<div class="result-order"><span>Order ID</span><b>' + esc(orderId) + '</b></div>' : "") +
         rows +
-        (success && data && data.download_url
-          ? '<a class="btn primary result-download" href="' + esc(data.download_url) + '">Download eBook</a>'
-          : "") +
+        (success && data && data.download_items && data.download_items.length
+          ? '<div class="combo-download-list">' + data.download_items.map(function(item){return '<a class="btn primary result-download" style="display:block;margin:8px 0" href="' + esc(item.download_url) + '">Download ' + esc(item.name || "eBook") + '</a>';}).join("") + '</div>'
+          : (success && data && data.download_url
+            ? '<a class="btn primary result-download" href="' + esc(data.download_url) + '">Download eBook</a>'
+            : "")) +
         (success && orderId
           ? '<a class="result-myorder" href="my-order.html">Order खो जाए तो Mera Order खोलें →</a>'
           : "") +
@@ -1184,7 +1188,7 @@ couponStatus.innerHTML = data.free
   var cashfreeInstance = null;
   function getCashfree() {
     if (!cashfreeInstance && typeof Cashfree === "function") {
-      cashfreeInstance = Cashfree({ mode: "production" });
+      cashfreeInstance = Cashfree({ mode: CASHFREE_MODE });
     }
     return cashfreeInstance;
   }
@@ -1281,7 +1285,7 @@ couponStatus.innerHTML = data.free
         return;
       }
 
-      var cashfree = getCashfree() || Cashfree({ mode: "production" });
+      var cashfree = getCashfree() || Cashfree({ mode: CASHFREE_MODE });
       await cashfree.checkout({
         paymentSessionId: data.payment_session_id,
         redirectTarget: "_self"
