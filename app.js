@@ -1349,6 +1349,26 @@ couponStatus.innerHTML = data.free
       closeResult();
 
       if (data.status === "PAID" && data.download_url) {
+                // Meta Pixel Purchase Event
+        try {
+          var purchaseValue = Number(data.final_price);
+          var purchaseKey = "amb_meta_purchase_" + orderId;
+
+          if (
+            purchaseValue > 0 &&
+            typeof window.fbq === "function" &&
+            !localStorage.getItem(purchaseKey)
+          ) {
+            window.fbq("track", "Purchase", {
+              value: purchaseValue,
+              currency: "INR"
+            });
+
+            localStorage.setItem(purchaseKey, "1");
+          }
+        } catch (pixelError) {
+          console.warn("Meta Purchase tracking error:", pixelError);
+        }
         showResultModal(data, {
           success: true,
           title: "Payment Successful 🎉",
