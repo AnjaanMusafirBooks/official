@@ -1519,3 +1519,75 @@ footer::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;back
 .sticky .btn{white-space:nowrap}
 .sticky .price{flex-wrap:nowrap;gap:.45rem}
 .sticky .price .now{font-size:1.45rem}
+
+/* Mobile responsive improvements */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 759px) {
+  body {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  .wrap {
+    width: calc(100% - 28px);
+  }
+
+  .hero h1 {
+    font-size: clamp(28px, 7vw, 38px);
+    line-height: 1.35;
+  }
+
+  .hero .lead {
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .feat {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .feat-img img {
+    display: block;
+    width: min(78%, 300px);
+    margin: 0 auto;
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .btn,
+  button,
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .btn,
+  button {
+    min-height: 44px;
+  }
+
+  #nav a {
+    font-size: 16px;
+  }
+
+  #herocovers img {
+    max-width: 100%;
+    height: auto;
+  }
+}
