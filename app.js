@@ -1179,11 +1179,28 @@ couponStatus.innerHTML = data.free
 
         // Modal tab tak khula rahega jab tak payment page na khul jaye.
         // Error aaye to finish() se band karo.
-        resolve({
-          name: name, email: email, phone: phone, coupon: coupon,
-          finish: function () { clearTimeout(slowTimer); loading = false; close(null); }
-        });
-      });
+        
+      // Meta Pixel: InitiateCheckout
+      try {
+        var checkoutValue = Number(customer.final_price);
+
+        if (
+          !customer.free &&
+          Number.isFinite(checkoutValue) &&
+          checkoutValue > 0 &&
+          typeof window.fbq === "function"
+        ) {
+          window.fbq("track", "InitiateCheckout", {
+            content_ids: [String(backendProductId)],
+            content_name: checkoutBook.title,
+            content_type: "product",
+            value: checkoutValue,
+            currency: "INR"
+          });
+        }
+      } catch (pixelError) {
+        console.warn("InitiateCheckout tracking error:", pixelError);
+      }
 
       requestAnimationFrame(function () {
         modal.classList.add("open");
@@ -1244,17 +1261,26 @@ couponStatus.innerHTML = data.free
     try {
             // Meta Pixel: InitiateCheckout
       try {
-        if (typeof window.fbq === "function") {
+        var checkoutValue = Number(customer.final_price);
+
+        if (
+          !customer.free &&
+          Number.isFinite(checkoutValue) &&
+          checkoutValue > 0 &&
+          typeof window.fbq === "function"
+        ) {
           window.fbq("track", "InitiateCheckout", {
             content_ids: [String(backendProductId)],
             content_name: checkoutBook.title,
             content_type: "product",
+            value: checkoutValue,
             currency: "INR"
           });
         }
       } catch (pixelError) {
         console.warn("InitiateCheckout tracking error:", pixelError);
       }
+
       var response = await fetch(WORKER_URL + "/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
