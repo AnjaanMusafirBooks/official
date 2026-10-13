@@ -142,6 +142,18 @@ hr { border: 0; border-top: 1px solid #d8d1c3; margin: 16px 0; }
 <button onclick="login()">खोलें</button></div>
 
 <div id="app" style="display:none">
+  <h2>Product Manager — नई किताब जोड़ें</h2>
+  <div class="card" id="product-editor">
+    <p><small>यह form D1 में किताब की listing बनाता है। PDF/cover को पहले मौजूदा storage में upload करके सही file key भरें; यह form files upload नहीं करता।</small></p>
+    <div class="row"><div><label>Product ID *</label><input id="np_id" maxlength="64" placeholder="जैसे NEW_BOOK_001"></div><div><label>किताब का नाम *</label><input id="np_name" maxlength="180" placeholder="किताब का नाम"></div></div>
+    <div class="row"><div><label>कीमत (₹) *</label><input id="np_price" type="number" min="0" step="0.01" placeholder="99"></div><div><label>लेखक</label><input id="np_author" maxlength="120" placeholder="लेखक का नाम"></div></div>
+    <div class="row"><div><label>PDF File Key *</label><input id="np_file_key" maxlength="500" placeholder="books/new-book.pdf"></div><div><label>PDF File Name *</label><input id="np_file_name" maxlength="255" placeholder="new-book.pdf"></div></div>
+    <div class="row"><div><label>भाषा</label><input id="np_language" maxlength="40" value="Hindi"></div><div><label>Pages</label><input id="np_pages" type="number" min="1" step="1" placeholder="120"></div></div>
+    <label>Cover Image URL (वैकल्पिक)</label><input id="np_cover" maxlength="1000" placeholder="https://... या उपलब्ध static cover path">
+    <label>विवरण</label><textarea id="np_description" rows="3" maxlength="3000" placeholder="किताब के बारे में छोटा विवरण"></textarea>
+    <div class="row"><div><label><input id="np_featured" type="checkbox" style="width:auto"> Featured</label></div><div><label><input id="np_popular" type="checkbox" style="width:auto"> Popular</label></div></div>
+    <button type="button" onclick="saveProduct()">नई किताब सेव करें</button> <button type="button" onclick="resetProduct()">फॉर्म साफ करें</button>
+  </div>
   <h2>किताबें और Offer</h2><div id="books"></div>
   <h2>Combo Offer Manager</h2>
   <div class="card" id="combo-editor">
@@ -250,6 +262,16 @@ async function load(){
   }).join("") : "<small>अभी कोई coupon नहीं।</small>";
 }
 async function run(fn,ok){ try{ await fn(); msg(ok); await load(); }catch(e){ msg(e.message); } }
+function resetProduct(){["np_id","np_name","np_price","np_author","np_file_key","np_file_name","np_pages","np_cover","np_description"].forEach(function(id){$(id).value=""});$("np_language").value="Hindi";$("np_featured").checked=false;$("np_popular").checked=false;}
+function saveProduct(){
+  var id=$("np_id").value.trim().toUpperCase();
+  if(!/^[A-Z0-9_-]{3,64}$/.test(id))return msg("Product ID में 3–64 अक्षर, नंबर, _ या - इस्तेमाल करें।");
+  if(!$("np_name").value.trim())return msg("किताब का नाम जरूरी है।");
+  if($("np_price").value===""||!Number.isFinite(Number($("np_price").value))||Number($("np_price").value)<0)return msg("सही कीमत डालें।");
+  if(!$("np_file_key").value.trim()||!$("np_file_name").value.trim())return msg("PDF File Key और PDF File Name जरूरी हैं।");
+  run(async function(){await call("/api/admin/product-save",{product_id:id,name:$("np_name").value.trim(),price:Number($("np_price").value),author:$("np_author").value.trim(),file_key:$("np_file_key").value.trim(),file_name:$("np_file_name").value.trim(),language:$("np_language").value.trim(),pages:$("np_pages").value,cover_url:$("np_cover").value.trim(),description:$("np_description").value.trim(),featured:$("np_featured").checked,popular:$("np_popular").checked});resetProduct();await load();},"नई किताब सेव हो गई ✅");
+}
+
 function savePrice(id){ run(function(){return call("/api/admin/price",{product_id:id,price:$("pr_"+id).value})},"कीमत सेव हुई ✅"); }
 function saveOffer(id){ run(function(){return call("/api/admin/offer",{product_id:id,sale_price:$("os_"+id).value,mrp:$("om_"+id).value,
   label:$("ol_"+id).value,starts_at:toIso($("osd_"+id).value),ends_at:toIso($("oed_"+id).value),active:$("oa_"+id).checked})},"Offer सेव हुआ ✅"); }
