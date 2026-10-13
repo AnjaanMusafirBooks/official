@@ -1177,30 +1177,36 @@ couponStatus.innerHTML = data.free
           if (sub) sub.textContent = "Still connecting to the secure payment gateway. Thank you for your patience…";
         }, 8000);
 
-        // Modal tab tak khula rahega jab tak payment page na khul jaye.
+         // Modal tab tak khula rahega jab tak payment page na khul jaye.
         // Error aaye to finish() se band karo.
-        
-      // Meta Pixel: InitiateCheckout
-      try {
-        var checkoutValue = Number(customer.final_price);
+
+        var finalCheckoutPrice = verified
+          ? Number(verified.final_price)
+          : Number(currentPrice(book));
 
         if (
-          !customer.free &&
-          Number.isFinite(checkoutValue) &&
-          checkoutValue > 0 &&
-          typeof window.fbq === "function"
+          verified &&
+          !verified.free &&
+          finalCheckoutPrice > 0 &&
+          finalCheckoutPrice < 1
         ) {
-          window.fbq("track", "InitiateCheckout", {
-            content_ids: [String(backendProductId)],
-            content_name: checkoutBook.title,
-            content_type: "product",
-            value: checkoutValue,
-            currency: "INR"
-          });
+          finalCheckoutPrice = 1;
         }
-      } catch (pixelError) {
-        console.warn("InitiateCheckout tracking error:", pixelError);
-      }
+
+        resolve({
+          name: name,
+          email: email,
+          phone: phone,
+          coupon: coupon,
+          final_price: finalCheckoutPrice,
+          free: !!(verified && verified.free),
+          finish: function () {
+            clearTimeout(slowTimer);
+            loading = false;
+            close(null);
+          }
+        });
+      });
 
       requestAnimationFrame(function () {
         modal.classList.add("open");
