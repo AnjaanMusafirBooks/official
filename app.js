@@ -355,18 +355,30 @@
     document.title =
       b.title +
       " — Anjaan Musafir Books";
-// Meta Pixel: ViewContent
+// Meta Pixel: ViewContent — Dynamic for all books
 try {
-  if (typeof window.fbq === "function") {
+  if (
+    typeof window.fbq === "function" &&
+    b &&
+    b.id &&
+    b.title
+  ) {
     window.fbq("track", "ViewContent", {
-      content_name: b.title,
+      content_ids: [
+        String(
+          typeof PRODUCT_IDS !== "undefined" && PRODUCT_IDS[b.id]
+            ? PRODUCT_IDS[b.id]
+            : b.id
+        )
+      ],
+      content_name: String(b.title),
       content_type: "product",
       value: Number(currentPrice(b)),
       currency: "INR"
     });
   }
 } catch (pixelError) {
-  console.warn("ViewContent tracking error:", pixelError);
+  console.warn("Meta Pixel ViewContent error:", pixelError);
 }
     var md =
       document.querySelector(
