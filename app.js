@@ -655,6 +655,96 @@ try {
   }
 
   /* =========================
+     WHATSAPP COMMUNITY PROMO
+     Uses the already-loaded /api/site-content response; no extra Worker calls.
+  ========================= */
+  function communitySettings() {
+    var item = SITE_CONTENT && SITE_CONTENT.whatsapp_community;
+    if (!item || !item.enabled || typeof item.body !== "string") return null;
+    var cfg = {};
+    item.body.split(/\r?\n/).forEach(function (line) {
+      var at = line.indexOf("=");
+      if (at < 1) return;
+      cfg[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+    });
+    var invite = cfg.invite_url || "";
+    // Do not expose a non-configured/example invite link.
+    if (!/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*\/?$/.test(invite)) return null;
+    cfg.invite_url = invite;
+    cfg.title = item.title || "🔥 सबसे खास डील्स… सबसे पहले आपके लिए! 👀";
+    cfg.description = cfg.description || "नए लॉन्चिंग ऑफर्स, Exclusive Coupons और Secret Deals की जानकारी सबसे पहले पाएँ।";
+    cfg.join_label = cfg.join_label || "अभी जॉइन करें";
+    cfg.details_label = cfg.details_label || "🤫 अंदर क्या मिलेगा?";
+    cfg.details_title = cfg.details_title || "कम्युनिटी में क्या मिलेगा?";
+    cfg.benefits = (cfg.benefits || "नए प्रोडक्ट लॉन्चिंग ऑफर्स|Exclusive Coupons और Discounts|Limited-time Deals|Surprise Benefits").split("|").map(function (x) { return x.trim(); }).filter(Boolean);
+    cfg.disclaimer = cfg.disclaimer || "Offers और coupons उपलब्धता एवं लागू शर्तों के अधीन हैं।";
+    return cfg;
+  }
+
+  function communityMarkup(cfg, compact) {
+    if (!cfg) return "";
+    return '<section class="am-community' + (compact ? ' am-community-compact' : '') + '" aria-label="WhatsApp Community">' +
+      '<div class="am-community-copy"><p class="am-community-eyebrow">ANJAAN MUSAFIR COMMUNITY</p>' +
+      '<h3>' + esc(cfg.title) + '</h3><p>' + esc(cfg.description) + '</p></div>' +
+      '<div class="am-community-actions"><a class="am-community-join" href="' + esc(cfg.invite_url) + '" target="_blank" rel="noopener noreferrer">' + esc(cfg.join_label) + '</a>' +
+      '<button class="am-community-details" type="button" data-am-community-details>' + esc(cfg.details_label) + '</button></div></section>';
+  }
+
+  function closeCommunityDetails() {
+    var old = document.querySelector(".am-community-modal");
+    if (old) old.remove();
+  }
+
+  function showCommunityDetails() {
+    var cfg = communitySettings();
+    if (!cfg) return;
+    closeCommunityDetails();
+    var modal = document.createElement("div");
+    modal.className = "am-community-modal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", "am-community-modal-title");
+    var benefits = cfg.benefits.map(function (benefit) { return '<li>' + esc(benefit) + '</li>'; }).join("");
+    modal.innerHTML = '<div class="am-community-modal-card"><button class="am-community-close" type="button" aria-label="Close">×</button>' +
+      '<p class="am-community-eyebrow">ANJAAN MUSAFIR COMMUNITY</p><h2 id="am-community-modal-title">' + esc(cfg.details_title) + '</h2>' +
+      '<p>' + esc(cfg.description) + '</p><ul>' + benefits + '</ul><p class="am-community-disclaimer">' + esc(cfg.disclaimer) + '</p>' +
+      '<a class="am-community-join" href="' + esc(cfg.invite_url) + '" target="_blank" rel="noopener noreferrer">' + esc(cfg.join_label) + '</a></div>';
+    modal.addEventListener("click", function (event) { if (event.target === modal || event.target.closest(".am-community-close")) closeCommunityDetails(); });
+    document.addEventListener("keydown", function onKey(event) {
+      if (event.key === "Escape") { closeCommunityDetails(); document.removeEventListener("keydown", onKey); }
+    }, { once: true });
+    document.body.appendChild(modal);
+    var close = modal.querySelector(".am-community-close");
+    if (close) close.focus();
+  }
+
+  function renderCommunitySections() {
+    // Re-render safely when the existing site-content request finishes after page rendering.
+    document.querySelectorAll(".am-community").forEach(function (node) { node.remove(); });
+    closeCommunityDetails();
+    var cfg = communitySettings();
+    if (!cfg) return;
+
+    // Front page teaser: below the trust strip.
+    var trust = document.querySelector("body[data-page='home'] .trust");
+    if (trust) trust.insertAdjacentHTML("afterend", communityMarkup(cfg, false));
+
+    // Teaser beside every product card, including related products on the book page.
+    document.querySelectorAll(".card").forEach(function (cardNode) {
+      cardNode.insertAdjacentHTML("beforeend", communityMarkup(cfg, true));
+    });
+
+    // Main direct product detail page teaser.
+    var bookHero = document.querySelector("body[data-page='book'] #book .bhero");
+    if (bookHero) bookHero.insertAdjacentHTML("afterend", communityMarkup(cfg, false));
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("[data-am-community-details]");
+    if (button) showCommunityDetails();
+  });
+
+  /* =========================
      DYNAMIC SITE CONTENT
      Public content is fetched from Worker/D1; existing HTML remains the fallback.
      Bodies are plain text with optional ## headings and - bullet lines (never raw HTML).
@@ -778,6 +868,7 @@ try {
       var footerNoteNode = document.querySelector("[data-footer-note]");
       if (footerNote && footerNote.enabled && footerNoteNode) footerNoteNode.textContent = footerNote.body;
       else if (contentApiAvailable && footerNoteNode) footerNoteNode.closest("p") && (footerNoteNode.closest("p").hidden = true);
+      renderCommunitySections();
     } catch (err) { console.warn("Dynamic site content unavailable; static content retained.", err); }
   }
 
@@ -1498,10 +1589,12 @@ couponStatus.innerHTML = data.free
     ]);
 
     renderPage(pg);
+    renderCommunitySections();
 
     if (!d1done) {
       await d1;
       renderPage(pg);
+      renderCommunitySections();
     }
 
     checkPaymentReturn();
