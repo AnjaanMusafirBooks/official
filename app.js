@@ -427,33 +427,31 @@
     document.title =
       b.title +
       " — Anjaan Musafir Books";
-// Meta Pixel: ViewContent — Dynamic for all books
-try {
-  if (!b || !b.id || !b.title) {
-    console.warn("ViewContent skipped: book data missing");
-  } else if (typeof window.fbq !== "function") {
-    console.warn(
-      "ViewContent skipped: Meta Pixel not loaded. Check book.html"
-    );
-  } else {
-    var pixelProductId =
-      PRODUCT_IDS[b.id] || b.id;
 
-    var pixelPrice = Number(currentPrice(b));
+      // Meta Pixel: ViewContent — prevent duplicates
+      try {
+        if (b && b.id && b.title && typeof window.fbq === "function") {
+          window.__viewContentSentFor =
+            window.__viewContentSentFor || {};
 
-    window.fbq("track", "ViewContent", {
-      content_ids: [String(pixelProductId)],
-      content_name: String(b.title),
-      content_type: "product",
-      value: Number.isFinite(pixelPrice) ? pixelPrice : 0,
-      currency: "INR"
-    });
+          var viewContentKey = String(b.id);
 
-    console.log("ViewContent sent:", b.id, b.title);
-  }
-} catch (pixelError) {
-  console.error("ViewContent tracking error:", pixelError);
-}
+          if (!window.__viewContentSentFor[viewContentKey]) {
+            window.__viewContentSentFor[viewContentKey] = true;
+
+            window.fbq("track", "ViewContent", {
+              content_ids: [String(PRODUCT_IDS[b.id] || b.id)],
+              content_name: String(b.title),
+              content_type: "product",
+              value: Number(currentPrice(b)) || 0,
+              currency: "INR"
+            });
+          }
+        }
+      } catch (error) {
+        console.error("ViewContent tracking error:", error);
+      }
+
     var md =
       document.querySelector(
         'meta[name="description"]'
