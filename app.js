@@ -244,49 +244,32 @@
   ========================= */
 
   function card(b) {
-    return '<article class="card">' +
+    var shortDesc = String(b.subtitle || b.desc || "इस eBook के बारे में अधिक जानकारी देखें।");
+    if (shortDesc.length > 135) shortDesc = shortDesc.slice(0, 132).trim() + "...";
 
-      badge(b) +
-
-      '<a href="' +
-      link(b) +
-      '">' +
-
-      '<img src="' +
-      esc(b.cover) +
-      '" alt="' +
-      esc(b.title) +
-      ' — eBook cover" loading="lazy">' +
-
-      "</a>" +
-
-      "<h3>" +
-      esc(b.title) +
-      "</h3>" +
-
-      '<p class="sub">' +
-      esc(b.subtitle) +
-      "</p>" +
-
-      '<p class="meta">' +
-      esc(b.author) +
-      " · " +
-      b.pages +
-      " पेज</p>" +
-
-      price(b) +
-
-      '<div class="actions">' +
-
-      '<a class="btn" href="' +
-      link(b) +
-      '">View Book</a>' +
-
-      buy(b) +
-
-      "</div>" +
-
-      "</article>";
+    return '<article class="card compact-card">' +
+      '<a class="compact-cover-link" href="' + link(b) + '">' +
+        '<img class="compact-cover" src="' + esc(b.cover || "") + '" alt="' + esc(b.title) + ' — eBook cover" loading="lazy">' +
+      '</a>' +
+      '<div class="compact-info">' +
+        '<div class="compact-heading">' +
+          '<div class="compact-title-wrap">' +
+            badge(b) +
+            '<h3><a href="' + link(b) + '">' + esc(b.title) + '</a></h3>' +
+          '</div>' +
+          price(b) +
+        '</div>' +
+        '<p class="compact-meta">' + esc(b.author || "Anjaan Musafir Books") +
+          (b.pages && b.pages !== "—" ? ' · ' + esc(b.pages) + ' पेज' : '') +
+          (b.language ? ' · ' + esc(b.language) : '') +
+        '</p>' +
+        '<p class="compact-description">' + esc(shortDesc) + '</p>' +
+        '<div class="compact-actions">' +
+          '<a class="btn compact-view-btn" href="' + link(b) + '">पूरा विवरण</a>' +
+          buy(b, "btn compact-buy-btn") +
+        '</div>' +
+      '</div>' +
+    '</article>';
   }
 
   /* =========================

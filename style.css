@@ -1596,3 +1596,170 @@ img {
 /* WhatsApp Community promo — isolated styles; does not alter existing checkout/product rules */
 .am-community{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:22px auto;padding:22px 24px;max-width:1120px;border:1px solid rgba(201,164,92,.45);border-radius:18px;background:linear-gradient(135deg,#111d2c 0%,#17283a 58%,#1b302f 100%);color:#f8f4e9;box-shadow:0 12px 30px rgba(0,0,0,.12)}
 .am-community-copy{min-width:0;flex:1}.am-community-eyebrow{margin:0 0 7px!important;color:#d7b56b!important;font-size:.7rem!important;font-weight:800;letter-spacing:.13em}.am-community h3{margin:0 0 7px;color:#fff7e6;font-size:clamp(1.05rem,2.4vw,1.45rem);line-height:1.4}.am-community-copy>p:last-child{margin:0;color:#d4dbe2;font-size:.94rem;line-height:1.6}.am-community-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.am-community-join,.am-community-details{display:inline-flex;align-items:center;justify-content:center;min-height:43px;padding:10px 15px;border:1px solid #c9a45c;border-radius:999px;font:700 .9rem/1.25 system-ui,sans-serif;text-decoration:none;cursor:pointer;white-space:normal}.am-community-join{background:#c9a45c;color:#17202b}.am-community-join:hover{background:#e0c17d}.am-community-details{background:transparent;color:#f8f4e9}.am-community-details:hover{background:rgba(255,255,255,.08)}.am-community-compact{display:block;margin:14px 0 0;padding:14px;border-radius:13px;box-shadow:none}.am-community-compact .am-community-eyebrow{font-size:.62rem!important}.am-community-compact h3{font-size:1rem}.am-community-compact .am-community-copy>p:last-child{font-size:.84rem}.am-community-compact .am-community-actions{margin-top:11px}.am-community-compact .am-community-join,.am-community-compact .am-community-details{min-height:39px;padding:9px 11px;font-size:.82rem}.am-community-modal{position:fixed;z-index:10000;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(4,10,18,.76);backdrop-filter:blur(5px)}.am-community-modal-card{position:relative;width:min(100%,520px);max-height:min(85vh,720px);overflow:auto;padding:28px;border:1px solid rgba(201,164,92,.55);border-radius:20px;background:#111d2c;color:#f8f4e9;box-shadow:0 24px 70px rgba(0,0,0,.35)}.am-community-modal-card h2{margin:0 0 12px;color:#fff7e6;font-size:1.55rem;line-height:1.4}.am-community-modal-card>p{color:#d4dbe2}.am-community-modal-card ul{padding-left:22px;line-height:1.8}.am-community-modal-card li::marker{color:#d7b56b}.am-community-disclaimer{font-size:.82rem;color:#bfc7d0!important}.am-community-close{position:absolute;top:10px;right:12px;min-width:38px;min-height:38px;border:0;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;font-size:1.5rem;cursor:pointer}.am-community-modal-card>.am-community-join{margin-top:6px}@media(max-width:700px){.am-community{align-items:stretch;flex-direction:column;padding:18px;gap:14px}.am-community-actions{width:100%}.am-community-join,.am-community-details{flex:1}.am-community-modal-card{padding:24px 20px}.am-community-compact .am-community-actions{align-items:stretch}}
+
+
+/* ===== Compact book list (keeps the existing navy/gold theme) ===== */
+#grid.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#grid .compact-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+  width: 100%;
+  padding: 14px;
+  position: relative;
+  text-align: left;
+}
+
+#grid .compact-cover-link {
+  display: block;
+  align-self: start;
+  width: 104px;
+  text-decoration: none;
+}
+
+#grid .compact-cover {
+  display: block;
+  width: 104px;
+  height: 144px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--navy2);
+  border: 1px solid var(--line);
+}
+
+#grid .compact-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#grid .compact-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#grid .compact-title-wrap {
+  min-width: 0;
+}
+
+#grid .compact-title-wrap .badge {
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+#grid .compact-title-wrap h3 {
+  margin: 0;
+  line-height: 1.35;
+  font-size: 1.08rem;
+  overflow-wrap: anywhere;
+}
+
+#grid .compact-title-wrap h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#grid .compact-title-wrap h3 a:hover {
+  color: var(--gold);
+}
+
+#grid .compact-card .price {
+  flex: 0 0 auto;
+  margin: 0;
+  white-space: nowrap;
+  text-align: right;
+}
+
+#grid .compact-card .price .now {
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+#grid .compact-card .price s,
+#grid .compact-card .price .off {
+  font-size: .76rem;
+}
+
+#grid .compact-meta {
+  margin: 0;
+  color: var(--mute);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+#grid .compact-description {
+  margin: 0;
+  font-size: .9rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+#grid .compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+#grid .compact-actions .btn {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: .84rem;
+}
+
+@media (max-width: 560px) {
+  #grid .compact-card {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: 11px;
+    padding: 10px;
+  }
+
+  #grid .compact-cover-link,
+  #grid .compact-cover {
+    width: 78px;
+  }
+
+  #grid .compact-cover {
+    height: 112px;
+  }
+
+  #grid .compact-heading {
+    display: block;
+  }
+
+  #grid .compact-title-wrap h3 {
+    font-size: .98rem;
+  }
+
+  #grid .compact-card .price {
+    margin-top: 4px;
+    text-align: left;
+  }
+
+  #grid .compact-card .price .now {
+    font-size: 1rem;
+  }
+
+  #grid .compact-description {
+    font-size: .83rem;
+  }
+
+  #grid .compact-actions .btn {
+    min-height: 33px;
+    padding: 7px 9px;
+    font-size: .78rem;
+  }
+}
