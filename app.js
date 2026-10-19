@@ -26,6 +26,8 @@
     "https://anjaan-musafir-delivery.officialsuperswagg.workers.dev";
   var CASHFREE_MODE = AM_CONFIG.cashfreeMode || "production";
 
+  // Known legacy IDs remain mapped exactly as before. New books are mapped
+  // automatically from the public /api/books response below.
   var PRODUCT_IDS = {
     "dimag-ka-shor": "DIMAG_KA_SHOR",
     "ai-career": "AI_PLUS_CAREER",
@@ -67,6 +69,15 @@
 
   var D1_PRODUCTS = {};
 
+  function bookSlug(productId) {
+    return String(productId || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/[_]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
   async function loadD1Products() {
     if (typeof BOOKS === "undefined") {
       console.error("BOOKS data not found.");
@@ -74,18 +85,79 @@
     }
 
     try {
-      var response = await fetch(WORKER_URL + "/api/catalog");
-      if (!response.ok) return;
+      var responses = await Promise.all([
+        fetch(WORKER_URL + "/api/catalog", { cache: "no-store" }),
+        fetch(WORKER_URL + "/api/books", { cache: "no-store" })
+      ]);
 
-      var data = await response.json();
-      var all = (data && data.products) || {};
+      if (responses[0].ok) {
+        var catalogData = await responses[0].json();
+        var allPrices = (catalogData && catalogData.products) || {};
+        BOOKS.forEach(function (b) {
+          var backendId = PRODUCT_IDS[b.id] || b.backendProductId || b.id;
+          var d = allPrices[backendId];
+          if (d && d.price != null) D1_PRODUCTS[b.id] = d;
+        });
+      }
 
-      BOOKS.forEach(function (b) {
-        var d = all[PRODUCT_IDS[b.id]];
-        if (d && d.price != null) D1_PRODUCTS[b.id] = d;
+      if (!responses[1].ok) return;
+      var listingData = await responses[1].json();
+      var rows = listingData && Array.isArray(listingData.books) ? listingData.books : [];
+
+      rows.forEach(function (row) {
+        if (!row || !row.product_id || !row.name) return;
+        var backendId = String(row.product_id);
+        var existing = BOOKS.filter(function (b) {
+          return String(PRODUCT_IDS[b.id] || b.backendProductId || "").toUpperCase() === backendId.toUpperCase();
+        })[0];
+
+        if (existing) {
+          // Keep the carefully written legacy book details, but allow its admin-managed
+          // cover/metadata to refresh when those fields are populated in D1.
+          if (row.cover_url) existing.cover = row.cover_url;
+          if (row.author) existing.author = row.author;
+          if (row.description) existing.desc = row.description;
+          if (row.pages != null) existing.pages = row.pages;
+          if (row.language) existing.language = row.language;
+          if (row.featured) existing.featured = true;
+          if (row.popular) existing.popular = true;
+          PRODUCT_IDS[existing.id] = backendId;
+          return;
+        }
+
+        var id = bookSlug(backendId);
+        if (!id || BOOKS.some(function (b) { return b.id === id; })) {
+          id = "book-" + bookSlug(backendId);
+        }
+        PRODUCT_IDS[id] = backendId;
+        var cover = String(row.cover_url || "").trim();
+        BOOKS.push({
+          id: id,
+          backendProductId: backendId,
+          title: String(row.name),
+          subtitle: String(row.description || "Anjaan Musafir Books की नई eBook"),
+          author: String(row.author || "Anjaan Musafir Books"),
+          pages: row.pages == null ? "—" : Number(row.pages),
+          language: String(row.language || "Hindi"),
+          price: Number(row.price || 0),
+          mrp: Number(row.price || 0),
+          cover: cover || "",
+          featured: !!row.featured,
+          popular: !!row.popular,
+          checkout: true,
+          desc: String(row.description || "इस eBook की जानकारी जल्द उपलब्ध होगी।"),
+          inside: [],
+          forWho: [],
+          chapters: [],
+          note: "",
+          preview: { enabled: false, pages: [] }
+        });
+        if (typeof allPrices !== "undefined" && allPrices[backendId]) {
+          D1_PRODUCTS[id] = allPrices[backendId];
+        }
       });
     } catch (err) {
-      console.warn("catalog load failed", err);
+      console.warn("catalog/book listing load failed", err);
     }
   }
 
@@ -1352,8 +1424,8 @@ couponStatus.innerHTML = data.free
     if (!btn) return;
 
     var productId = btn.getAttribute("data-product-id");
-    var backendProductId = PRODUCT_IDS[productId];
     var checkoutBook = BOOKS.filter(function (b) { return b.id === productId; })[0];
+    var backendProductId = PRODUCT_IDS[productId] || (checkoutBook && checkoutBook.backendProductId);
 
     if (!backendProductId || !checkoutBook) {
       showResultModal(null, { success: false, title: "Book not found", message: "यह किताब अभी उपलब्ध नहीं है।" });
