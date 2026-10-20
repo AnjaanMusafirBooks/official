@@ -1592,9 +1592,11 @@ couponStatus.innerHTML = data.free
             !localStorage.getItem(purchaseKey)
           ) {
             window.fbq("track", "Purchase", {
-              value: purchaseValue,
-              currency: "INR"
-            });
+  value: purchaseValue,
+  currency: "INR"
+}, {
+  eventID: String(orderId)
+});
 
             localStorage.setItem(purchaseKey, "1");
           }
